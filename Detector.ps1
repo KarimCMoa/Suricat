@@ -1,14 +1,14 @@
-# Variables pour Telegram
+# Variables for Telegram
 $token = "Do you think I'm stupid?"
 $chatId = "I'm not dumb"
 
-# Variables d'environnement pour rendre les chemins dynamiques
+# Environment variables to make paths dynamic
 $envUserProfile = [System.Environment]::GetFolderPath("UserProfile")
 $envSystemRoot = [System.Environment]::GetFolderPath("Windows")
-$envAppDataRoaming = [System.Environment]::GetFolderPath("ApplicationData")  # Chemin vers AppData\Roaming
-$envAppDataLocal = [System.Environment]::GetFolderPath("LocalApplicationData")  # Chemin vers AppData\Local
+$envAppDataRoaming = [System.Environment]::GetFolderPath("ApplicationData")  # Path to AppData\Roaming
+$envAppDataLocal = [System.Environment]::GetFolderPath("LocalApplicationData")  # Path to AppData\Local
 
-# Liste des chemins à exclure (utilisation de variables d'environnement)
+# List of paths to exclude (using environment variables)
 $excludedPaths = @(
     "$envUserProfile\Documents",
     "$envSystemRoot\Temp",
@@ -17,17 +17,17 @@ $excludedPaths = @(
     "$envAppDataLocal",
     "C:\Program Files"
     "C:\Windows\Prefetch"
-    # Ajoutez d'autres chemins ici, utilisez des variables d'environnement si nécessaire
+    # Add other paths here, using environment variables if necessary
 )
 
-# Liste des disques à surveiller
+# List of disks to monitor
 $pathsToMonitor = @(
     "C:\",
     "D:\",
     "E:\"
 )
 
-# Fonction pour obtenir les informations système
+# Function to obtain system information
 function Get-SystemInfo {
     $localIP = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.Address -ne "127.0.0.1" } | Select-Object -First 1).IPAddress
     $publicIP = (Invoke-RestMethod -Uri "http://api.ipify.org").ip
@@ -54,26 +54,26 @@ function Send-TelegramMessage {
         $url = "https://api.telegram.org/bot$token/sendMessage"
         $params = @{
             chat_id = $chatId
-            text = "$message`n____________________________________________`nInformations système:`n" +
-                   "Adresse IP locale : $($systemInfo.LocalIP)`n" +
-                   "Adresse IP publique : $($systemInfo.PublicIP)`n" +
-                   "Nom de l'ordinateur : $($systemInfo.Hostname)`n" +
-                   "Compte utilisateur : $($systemInfo.Username)`n" +
-                   "Date et Heure : $($systemInfo.DateTime)`n `n"
+            text = "$message`n____________________________________________`nSystem information:`n" +
+                   "Local IP address : $($systemInfo.LocalIP)`n" +
+                   "Public IP address : $($systemInfo.PublicIP)`n" +
+                   "Computer name : $($systemInfo.Hostname)`n" +
+                   "User account : $($systemInfo.Username)`n" +
+                   "Date and time : $($systemInfo.DateTime)`n `n"
         }
         try {
             $response =  Invoke-RestMethod -Uri $url -Method Post -ContentType "application/x-www-form-urlencoded" -Body $params
         if ($response.ok) {
-            Write-Host "Message envoyé avec succès"
+            Write-Host "Message sent successfully"
         } else {
-            Write-Host "Échec de l'envoi du message : $($response.description)"
+            Write-Host "Message failed to send : $($response.description)"
         }
         } catch {
             Write-Error "Failed to send message: $_"
         }
 }
 
-# Fonction pour déterminer si une notification doit être envoyée
+# Function to determine whether a notification should be sent
 function Should-Notify {
     param (
         [string]$filePath
@@ -86,7 +86,7 @@ function Should-Notify {
     return $true
 }
 
-# Fonction pour lire le contenu d'un fichier
+# Function to read the contents of a file
 function Get-FileContent {
     param (
         [string]$filePath
@@ -97,18 +97,18 @@ function Get-FileContent {
     return ""
 }
 
-# Fonction pour comparer deux contenus de fichiers
+# Function to compare two file contents
 function Compare-FileContents {
     param (
         [string]$oldContent,
         [string]$newContent
     )
-    # Utilise diff pour obtenir les différences entre les fichiers
+    # Use diff to obtain differences between files
     $diff = diff -OldFile $oldContent -NewFile $newContent -Differences
     return $diff
 }
 
-# Fonction pour surveiller un chemin donné
+# Function to monitor a given path
 function Start-FileSystemWatcher {
     param (
         [string]$pathToMonitor
@@ -119,15 +119,15 @@ function Start-FileSystemWatcher {
     $watcher.IncludeSubdirectories = $true
     $watcher.EnableRaisingEvents = $true
 
-    # Dictionnaire pour stocker les contenus des fichiers avant modification
+    # Dictionary to store file contents before editing
     $fileContents = @{}
 
-    # Gestion des événements
+    # Event management
     Register-ObjectEvent $watcher Created -SourceIdentifier "$pathToMonitor-Created" -Action {
         if (Should-Notify $event.SourceEventArgs.FullPath) {
             $filePath = $event.SourceEventArgs.FullPath
             $fileContents[$filePath] = Get-FileContent $filePath
-            Send-TelegramMessage "Un fichier a été créé : $filePath"
+            Send-TelegramMessage "A file has been created : $filePath"
         }
     }
 
@@ -135,7 +135,7 @@ function Start-FileSystemWatcher {
         if (Should-Notify $event.SourceEventArgs.FullPath) {
             $filePath = $event.SourceEventArgs.FullPath
             $fileContents.Remove($filePath)
-            Send-TelegramMessage "Un fichier a été supprimé : $filePath"
+            Send-TelegramMessage "A file has been deleted : $filePath"
         }
     }
 
@@ -146,7 +146,7 @@ function Start-FileSystemWatcher {
             if ($fileContents.ContainsKey($filePath)) {
                 $oldContent = $fileContents[$filePath]
                 $diff = Compare-FileContents -oldContent $oldContent -newContent $newContent
-                Send-TelegramMessage "Un fichier a été modifié : $filePath`nDifférences : $diff"
+                Send-TelegramMessage "A file has been modified : $filePath`nDifférences : $diff"
             }
             $fileContents[$filePath] = $newContent
         }
@@ -161,36 +161,36 @@ function Start-FileSystemWatcher {
                 $fileContents.Remove($oldPath)
                 $fileContents[$newPath] = $content
             }
-            Send-TelegramMessage "Un fichier a été renommé : $oldPath -> $newPath"
+            Send-TelegramMessage "A file has been renamed : $oldPath -> $newPath"
         }
     }
 }
 
-# Alerte au démarrage
-Send-TelegramMessage "Le système a démarré : $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+# Start-up alert
+Send-TelegramMessage "The system has started up : $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 
-# Surveillance du système pour l'arrêt
+# System monitoring for shutdown
 Register-WmiEvent -Query "SELECT * FROM Win32_ComputerShutdownEvent" -Action {
-    Send-TelegramMessage "Le système s'est arrêté : $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    Send-TelegramMessage "The system has stopped : $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 } -SourceIdentifier "ShutdownAlert"
 
-# Surveillance du système pour l'hibernation/veille
+# System monitoring for hibernation/standby
 Register-WmiEvent -Query "SELECT * FROM Win32_PowerManagementEvent WHERE EventType = 7" -Action {
-    Send-TelegramMessage "L'ordinateur entre en veille : $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    Send-TelegramMessage "Computer enters standby mode : $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 } -SourceIdentifier "SleepAlert"
 
-# Surveillance du système pour la sortie de veille
+# System monitoring for standby output
 Register-WmiEvent -Query "SELECT * FROM Win32_PowerManagementEvent WHERE EventType = 10" -Action {
-    Send-TelegramMessage "L'ordinateur sort de veille : $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    Send-TelegramMessage "Computer wakes up from sleep : $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 } -SourceIdentifier "WakeAlert"
 
-# Démarrage de la surveillance pour chaque disque spécifié
+# Start monitoring for each specified disk
 foreach ($path in $pathsToMonitor) {
     Start-FileSystemWatcher -pathToMonitor $path
 }
 
-# Pour garder le script en cours d'exécution
-Write-Host "Surveillance en cours... Appuyez sur Ctrl+C pour arrêter."
+# To keep the script running
+Write-Host "Monitoring in progress... Press Ctrl+C to stop."
 while ($true) {
     Start-Sleep -Seconds 1
 }
